@@ -86,8 +86,14 @@ class MCRcon(object):
         if platform.system() != "Windows":
             signal.alarm(self.timeout)
         data = b""
+        self.socket.settimeout(2)
         while len(data) < length:
-            data += self.socket.recv(length - len(data))
+            try:
+                data += self.socket.recv(length - len(data))
+            except socket.timeout:
+                data += b"\x01\x01\x00\x00"
+                break
+        self.socket.settimeout(None)
         if platform.system() != "Windows":
             signal.alarm(0)
         return data
@@ -120,6 +126,10 @@ class MCRcon(object):
 
             # Record the response
             in_data += in_data_partial.decode("utf8")
+
+            # dataの最後尾が\x01\x01\x00\x00なら終了
+            if in_payload[-4:] == b"\x01\x01\x00\x00":
+                return in_data
 
             # If there's nothing more to receive, return the response
             if len(select.select([self.socket], [], [], 0)[0]) == 0:
